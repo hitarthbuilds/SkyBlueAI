@@ -21,3 +21,6 @@ storage/events/*
 
 # Logs
 *.log
+
+# Databases
+*.db
