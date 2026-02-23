@@ -1,0 +1,23 @@
+# Env
+.env
+.env.*
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+
+# Storage
+storage/videos/
+storage/events/*
+!storage/events/sample_events.json
+
+# Logs
+*.log
