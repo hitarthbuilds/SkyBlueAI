@@ -70,5 +70,8 @@ storage/        Local storage for uploads (dev)
 - `docs/sales/demo_script.md`
 - `docs/product_readiness.md`
 
+## Netlify
+- `docs/netlify_deploy.md`
+
 ## Environment
 Use `.env.example` as a starting point for configuration.
