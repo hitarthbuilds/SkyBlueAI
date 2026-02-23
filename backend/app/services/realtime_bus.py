@@ -54,28 +54,51 @@ async def publish(channel: str, message: Any) -> None:
 
 
 async def subscribe(channel: str) -> AsyncIterator[str]:
-    redis = await _get_redis()
-    if redis:
-        pubsub = redis.pubsub()
-        await pubsub.subscribe(channel)
-        try:
-            async for msg in pubsub.listen():
-                if msg.get("type") == "message":
-                    data = msg.get("data")
-                    if isinstance(data, bytes):
-                        yield data.decode("utf-8")
-                    else:
-                        yield str(data)
-        finally:
-            await pubsub.unsubscribe(channel)
-            await pubsub.close()
-        return
-
     queue: asyncio.Queue = asyncio.Queue()
     _local_subscribers.setdefault(channel, set()).add(queue)
     try:
+        if not settings.redis_url:
+            while True:
+                payload = await queue.get()
+                yield payload
+
+        backoff = 1.0
         while True:
-            payload = await queue.get()
-            yield payload
+            redis = await _get_redis()
+            if redis:
+                pubsub = redis.pubsub()
+                try:
+                    await pubsub.subscribe(channel)
+                    backoff = 1.0
+                    async for msg in pubsub.listen():
+                        if msg.get("type") == "message":
+                            data = msg.get("data")
+                            if isinstance(data, bytes):
+                                yield data.decode("utf-8")
+                            else:
+                                yield str(data)
+                except Exception:
+                    try:
+                        loop = asyncio.get_running_loop()
+                        _redis_by_loop.pop(id(loop), None)
+                    except Exception:
+                        pass
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, 5.0)
+                finally:
+                    try:
+                        await pubsub.unsubscribe(channel)
+                        await pubsub.close()
+                    except Exception:
+                        pass
+                continue
+
+            # Redis unavailable; fall back to local queue with periodic retry.
+            try:
+                payload = await asyncio.wait_for(queue.get(), timeout=backoff)
+                yield payload
+            except asyncio.TimeoutError:
+                backoff = min(backoff * 2, 5.0)
+                continue
     finally:
         _local_subscribers.get(channel, set()).discard(queue)

@@ -22,6 +22,19 @@ def upgrade() -> None:
     bind = op.get_bind()
     inspector = inspect(bind)
     tables = set(inspector.get_table_names())
+    dialect = bind.dialect.name
+
+    def column_names(table_name: str) -> set[str]:
+        return {col["name"] for col in inspector.get_columns(table_name)} if table_name in tables else set()
+
+    def unique_on(table_name: str, columns: list[str]) -> bool:
+        if table_name not in tables:
+            return False
+        target = set(columns)
+        for constraint in inspector.get_unique_constraints(table_name):
+            if set(constraint.get("column_names") or []) == target:
+                return True
+        return False
 
     if 'matches' not in tables:
         op.create_table(
@@ -36,6 +49,22 @@ def upgrade() -> None:
             sa.Column('created_at', sa.DateTime(), nullable=True),
             sa.PrimaryKeyConstraint('id')
         )
+    else:
+        cols = column_names('matches')
+        if 'home_team' not in cols:
+            op.add_column('matches', sa.Column('home_team', sa.String(), nullable=True))
+        if 'away_team' not in cols:
+            op.add_column('matches', sa.Column('away_team', sa.String(), nullable=True))
+        if 'match_date' not in cols:
+            op.add_column('matches', sa.Column('match_date', sa.String(), nullable=True))
+        if 'event_data_path' not in cols:
+            op.add_column('matches', sa.Column('event_data_path', sa.String(), nullable=True))
+        if 'video_path' not in cols:
+            op.add_column('matches', sa.Column('video_path', sa.String(), nullable=True))
+        if 'status' not in cols:
+            op.add_column('matches', sa.Column('status', sa.String(), nullable=True))
+        if 'created_at' not in cols:
+            op.add_column('matches', sa.Column('created_at', sa.DateTime(), nullable=True))
 
     created_events = False
     if 'events' not in tables:
@@ -55,6 +84,26 @@ def upgrade() -> None:
             sa.PrimaryKeyConstraint('id')
         )
         created_events = True
+    else:
+        cols = column_names('events')
+        if 'match_id' not in cols:
+            op.add_column('events', sa.Column('match_id', sa.String(), nullable=False))
+        if 'timestamp' not in cols:
+            op.add_column('events', sa.Column('timestamp', sa.Float(), nullable=True))
+        if 'type' not in cols:
+            op.add_column('events', sa.Column('type', sa.String(), nullable=False))
+        if 'team' not in cols:
+            op.add_column('events', sa.Column('team', sa.String(), nullable=True))
+        if 'player_id' not in cols:
+            op.add_column('events', sa.Column('player_id', sa.String(), nullable=True))
+        if 'x' not in cols:
+            op.add_column('events', sa.Column('x', sa.Float(), nullable=True))
+        if 'y' not in cols:
+            op.add_column('events', sa.Column('y', sa.Float(), nullable=True))
+        if 'payload' not in cols:
+            op.add_column('events', sa.Column('payload', sa.JSON(), nullable=True))
+        if 'created_at' not in cols:
+            op.add_column('events', sa.Column('created_at', sa.DateTime(), nullable=True))
 
     if 'events' in tables or created_events:
         existing_indexes = {idx['name'] for idx in inspector.get_indexes('events')}
@@ -78,6 +127,20 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(['match_id'], ['matches.id'], ),
             sa.PrimaryKeyConstraint('id')
         )
+    else:
+        cols = column_names('insights')
+        if 'match_id' not in cols:
+            op.add_column('insights', sa.Column('match_id', sa.String(), nullable=True))
+        if 'type' not in cols:
+            op.add_column('insights', sa.Column('type', sa.String(), nullable=False))
+        if 'description' not in cols:
+            op.add_column('insights', sa.Column('description', sa.Text(), nullable=False))
+        if 'severity' not in cols:
+            op.add_column('insights', sa.Column('severity', sa.String(), nullable=True))
+        if 'data' not in cols:
+            op.add_column('insights', sa.Column('data', sa.JSON(), nullable=True))
+        if 'created_at' not in cols:
+            op.add_column('insights', sa.Column('created_at', sa.DateTime(), nullable=True))
 
     created_live = False
     if 'live_snapshots' not in tables:
@@ -92,6 +155,16 @@ def upgrade() -> None:
             sa.UniqueConstraint('match_id')
         )
         created_live = True
+    else:
+        cols = column_names('live_snapshots')
+        if 'match_id' not in cols:
+            op.add_column('live_snapshots', sa.Column('match_id', sa.String(), nullable=False))
+        if 'payload' not in cols:
+            op.add_column('live_snapshots', sa.Column('payload', sa.JSON(), nullable=False))
+        if 'updated_at' not in cols:
+            op.add_column('live_snapshots', sa.Column('updated_at', sa.DateTime(), nullable=True))
+        if not unique_on('live_snapshots', ['match_id']):
+            op.create_unique_constraint('uq_live_snapshots_match_id', 'live_snapshots', ['match_id'])
 
     if 'live_snapshots' in tables or created_live:
         existing_live_indexes = {idx['name'] for idx in inspector.get_indexes('live_snapshots')}
@@ -111,6 +184,20 @@ def upgrade() -> None:
             sa.ForeignKeyConstraint(['match_id'], ['matches.id'], ),
             sa.PrimaryKeyConstraint('id')
         )
+    else:
+        cols = column_names('players')
+        if 'external_id' not in cols:
+            op.add_column('players', sa.Column('external_id', sa.String(), nullable=True))
+        if 'name' not in cols:
+            op.add_column('players', sa.Column('name', sa.String(), nullable=False))
+        if 'team' not in cols:
+            op.add_column('players', sa.Column('team', sa.String(), nullable=True))
+        if 'position' not in cols:
+            op.add_column('players', sa.Column('position', sa.String(), nullable=True))
+        if 'metrics' not in cols:
+            op.add_column('players', sa.Column('metrics', sa.JSON(), nullable=True))
+        if 'match_id' not in cols:
+            op.add_column('players', sa.Column('match_id', sa.String(), nullable=True))
     # ### end Alembic commands ###
 
 

@@ -213,9 +213,13 @@ def ingest_events(payload: List[LiveEventIn], request: Request, db: Session = De
     if not payload:
         return events
 
-    match = db.query(Match).filter(Match.id == payload[0].match_id).first()
+    match_id = payload[0].match_id
+    if any(item.match_id != match_id for item in payload):
+        raise HTTPException(status_code=400, detail="All events in batch must share the same match_id")
+
+    match = db.query(Match).filter(Match.id == match_id).first()
     if not match:
-        match = Match(id=payload[0].match_id, status="live")
+        match = Match(id=match_id, status="live")
         db.add(match)
         db.commit()
         db.refresh(match)
@@ -238,8 +242,8 @@ def ingest_events(payload: List[LiveEventIn], request: Request, db: Session = De
     db.add(match)
     db.commit()
 
-    snapshot = update_live_snapshot(db, payload[0].match_id)
-    channel = f"match:{payload[0].match_id}"
+    snapshot = update_live_snapshot(db, match_id)
+    channel = f"match:{match_id}"
     publish_payload = {
         "batch": True,
         "snapshot": snapshot.payload,
